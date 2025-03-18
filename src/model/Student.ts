@@ -24,6 +24,23 @@ const studentSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  sessionData: {
+    isActive: { 
+      type: Boolean, 
+      default: false
+    },
+    startTime: { 
+      type: Date 
+    },
+    deviceId: { 
+      type: String 
+    },
+    expiresAt: {
+      type: Date
+    }
+  }
+}, { 
+  timestamps: true 
 });
 
 const Student = mongoose.model("Student", studentSchema);
