@@ -1,48 +1,72 @@
-import mongoose from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
-const studentSchema = new mongoose.Schema({
-  S_No: Number,
-  University_Name: String,
-  College_Name: String,
-  College_Code: String,
-  Branch: String,
-  District: String,
-  Semester: Number,
-  Student_Name: String,
-  Student_Email: String,
-  Student_Phone: String,
-  Student_RollNo: String,
-  Student_NM_Id: String,
-  Course_Name: String,
-  Course_ID: Number,
-  marks: Number,
-  answers: {
-    type: Object,
-    default: {},
+const studentSchema = new mongoose.Schema(
+  {
+    "S No": Number,
+    "University Name": String,
+    "College Name": String,
+    "College Code": String,
+    Branch: String,
+    District: String,
+    Semester: Number,
+    "Student Name": String,
+    "Student Email": {
+      type: String,
+      unique: true,
+    },
+    "Student Phone": {
+      type: String,
+      unique: true,
+    },
+    Student_Phone: {
+      type: String,
+      unique: true,
+    },
+    "Student RollNo": {
+      type: String,
+      unique: true,
+    },
+    "Student NM Id": String,
+    "Course Name": String,
+    "Course ID": Number,
+    marks: Number,
+    answers: {
+      type: Object,
+      default: {},
+    },
+    attempted: {
+      type: Boolean,
+      default: false,
+    },
+    sessionData: {
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      startTime: {
+        type: Date,
+      },
+      deviceId: {
+        type: String,
+      },
+      expiresAt: {
+        type: Date,
+      },
+    },
   },
-  attempted: {
-    type: Boolean,
-    default: false,
-  },
-  sessionData: {
-    isActive: { 
-      type: Boolean, 
-      default: false
-    },
-    startTime: { 
-      type: Date 
-    },
-    deviceId: { 
-      type: String 
-    },
-    expiresAt: {
-      type: Date
-    }
+  {
+    timestamps: true,
   }
-}, { 
-  timestamps: true 
-});
+);
 
-const Student = mongoose.model("Student", studentSchema);
+export type IStudent = Schema<typeof studentSchema>;
+
+// Add only the essential indexes for high-volume operations
+studentSchema.index({ "Student RollNo": 1 });
+studentSchema.index({ "sessionData.isActive": 1 });
+
+// const Student = mongoose.model("Student", studentSchema);
+const Student =
+  mongoose.models.Student || mongoose.model("Student", studentSchema);
 
 export default Student;
