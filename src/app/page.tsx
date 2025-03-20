@@ -44,6 +44,14 @@ export default function LoginPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const router = useRouter();
 
+  console.log("Current Environment:", process.env.NODE_ENV);
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("Running in Development Mode");
+  } else {
+    console.log("Running in Production Mode");
+  }
+
   // Initialize and check for existing session
   useEffect(() => {
     try {
