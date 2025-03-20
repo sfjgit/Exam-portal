@@ -116,11 +116,11 @@ export async function GET(req: NextRequest) {
     }));
 
     // 9. Shuffle Questions for Exam Integrity
-    const shuffledQuestions = shuffleArray(safeQuestions);
+    // const shuffledQuestions = shuffleArray(safeQuestions);
 
     // 10. Cache Management
     QUESTION_CACHE.set(formId, {
-      questions: shuffledQuestions,
+      questions: safeQuestions,
       timestamp: Date.now(),
     });
 
@@ -141,9 +141,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       formId,
-      questions: shuffledQuestions,
+      questions: safeQuestions,
       metadata: {
-        totalQuestions: shuffledQuestions.length,
+        totalQuestions: safeQuestions.length,
         fetchTime: processingTime,
         cacheHit: false,
       },

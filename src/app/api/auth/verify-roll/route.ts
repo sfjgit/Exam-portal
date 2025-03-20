@@ -71,7 +71,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // Find student by roll number with minimal projection
     const student = (await Student.findOne(
-      { "Student RollNo": rollNumber.trim() },
+      { "Student RollNo": { $regex: rollNumber.trim() + "$" } },
       {
         "Student Name": 1,
         "Student RollNo": 1,
