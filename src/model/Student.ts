@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { InferSchemaType } from "mongoose";
 
 const studentSchema = new mongoose.Schema(
   {
@@ -59,7 +59,7 @@ const studentSchema = new mongoose.Schema(
   }
 );
 
-export type IStudent = Schema<typeof studentSchema>;
+export type IStudent = InferSchemaType<typeof studentSchema>;
 
 // Add only the essential indexes for high-volume operations
 studentSchema.index({ "Student RollNo": 1 });

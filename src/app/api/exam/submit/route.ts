@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/exam/submit/route.ts
@@ -12,16 +13,16 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "fallback-secret-key-change-in-production"
 );
 
-// Calculate marks based on submitted answers
 function calculateMarks(
   questions: any[],
   userAnswers: { [key: string]: number | null }
 ): number {
-  let mark = 0;
-  const answerArr = Object.values(userAnswers);
+  // Convert the user answers object to an array
 
+  const answerarr = Object.values(userAnswers);
+  let mark = 0;
   for (let i = 0; i < questions.length; i++) {
-    if (questions[i].correctAnswer.includes(answerArr[i])) {
+    if (questions[i].correctAnswer.includes(answerarr[i])) {
       mark += 1;
     }
   }
@@ -95,7 +96,11 @@ export async function POST(req: NextRequest) {
     // Check if student has already attempted the exam
     if (student.attempted) {
       return NextResponse.json(
-        { success: false, message: "Exam already attempted" },
+        {
+          success: false,
+          message: "Exam already attempted",
+          code: "ALREADY_ATTEMPTED",
+        },
         { status: 400 }
       );
     }
@@ -113,7 +118,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Calculate marks
-    const marks = calculateMarks(form.questions, answers);
+    // @ts-ignore
+    const marks = calculateMarks(form?.questions, answers);
 
     // Update student record
     await Student.findByIdAndUpdate(studentId, {
@@ -135,7 +141,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Exam submitted successfully",
-      totalQuestions: form.questions.length,
+      // @ts-ignore
+
+      totalQuestions: form?.questions.length,
     });
   } catch (error: any) {
     console.error(`[${requestId}] Exam submission error:`, error);

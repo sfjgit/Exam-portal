@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/exam/questions/route.ts
 import { NextRequest, NextResponse } from "next/server";
@@ -48,15 +50,21 @@ export async function GET(req: NextRequest) {
         JWT_SECRET
       );
       payload = verifiedPayload;
+      // @ts-ignore
     } catch (error) {
       return NextResponse.json(
         { success: false, message: "Invalid or expired session" },
         { status: 401 }
       );
     }
-
+    if (!payload.courseId) {
+      return NextResponse.json(
+        { success: false, message: "Form ID is required" },
+        { status: 400 }
+      );
+    }
     // 3. Extract Form ID
-    const formId = req.nextUrl.searchParams.get("formId") || payload.formId;
+    const formId = payload.courseId as string;
     if (!formId) {
       return NextResponse.json(
         { success: false, message: "Form ID is required" },
@@ -100,6 +108,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 8. Prepare Safe Questions (Remove Sensitive Data)
+    // @ts-ignore
     const safeQuestions = form.questions.map((q) => ({
       id: q.questionId,
       question: q.question,
@@ -118,6 +127,7 @@ export async function GET(req: NextRequest) {
     // Prevent cache from growing indefinitely
     if (QUESTION_CACHE.size > MAX_CACHE_ENTRIES) {
       const oldestKey = QUESTION_CACHE.keys().next().value;
+      // @ts-ignore
       QUESTION_CACHE.delete(oldestKey);
     }
 

@@ -1,8 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
 // components/PhoneVerification.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { PhoneIcon } from "@heroicons/react/24/outline";
 
 // Define the props interface
 interface PhoneVerificationProps {
@@ -325,32 +325,38 @@ export default function PhoneVerification({
   );
 
   return (
-    <div className="w-full max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden">
-      <div className="px-6 py-8">
-        <div className="flex items-center justify-center mb-6">
-          <div className="bg-blue-100 p-3 rounded-full">
-            <PhoneIcon className="h-8 w-8 text-blue-600" />
-          </div>
+    <div className="w-full">
+      {/* Form Title */}
+      <div className="flex items-center mb-5">
+        <div className=" rounded-full">
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/1200px-WhatsApp.svg.png"
+            alt="Logo"
+            className="h-12 w-12 object-contain"
+            loading="eager"
+          />
         </div>
-
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
-          {step === "phone" ? "Enter your WhatsApp number" : "Enter OTP"}
-        </h2>
-
-        <p className="text-center text-gray-600 mb-6">
-          {step === "phone"
-            ? "We will send a verification code to your WhatsApp"
-            : "Enter the 6-digit code sent to your WhatsApp"}
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 text-red-700">
-            {error}
-          </div>
-        )}
-
-        {step === "phone" ? phoneForm : otpForm}
+        <div className="ml-3">
+          <h2 className="text-lg font-semibold text-gray-800">
+            {step === "phone" ? "WhatsApp Verification" : "Confirm OTP"}
+          </h2>
+          <p className="text-xs text-gray-500">
+            {step === "phone"
+              ? "We'll send a verification code to your number"
+              : "Enter the 6-digit code sent to your WhatsApp"}
+          </p>
+        </div>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 p-2.5 bg-red-50 rounded-md border-l-3 border-red-400 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Form Content */}
+      <div className="space-y-4">{step === "phone" ? phoneForm : otpForm}</div>
     </div>
   );
 }

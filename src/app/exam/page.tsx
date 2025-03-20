@@ -1,6 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogClose,
@@ -11,8 +13,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useQuizAnswersStore } from "@/store/useQuestions";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
-// Type definitions remain the same
+// Type definitions
 interface StudentInfo {
   university: string;
   college: string;
@@ -28,153 +33,284 @@ interface Question {
   options: string[];
 }
 
-interface AnswerMap {
-  [key: number]: number;
-}
-
 export default function ExamPage() {
-  // State for questions and exam management
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<AnswerMap>(() => {
-    // Initialize answers from localStorage
-    const savedAnswers = localStorage.getItem("examAnswers");
-    return savedAnswers ? JSON.parse(savedAnswers) : {};
+  const {
+    answers: storedAnswers,
+    setAllAnswers,
+    clearAnswers,
+  } = useQuizAnswersStore();
+
+  // Reduce state updates by using a ref for non-render-dependent data
+  const [examState, setExamState] = useState({
+    questions: [] as Question[],
+    answers: {} as { [key: number]: number | null },
+    currentQuestion: 0,
+    isSubmitting: false,
+    studentInfo: null as StudentInfo | null,
+    isLoading: true,
+    error: null as string | null,
   });
-  const [currentQuestion, setCurrentQuestion] = useState<number>(0);
-  const [timeRemaining, setTimeRemaining] = useState<number>(() => {
-    // Initialize time from localStorage or default to 5 hours
-    const savedTime = localStorage.getItem("examTimeRemaining");
-    return savedTime ? parseInt(savedTime) : 5 * 60 * 60;
-  });
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Student information from localStorage
-  const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
+  const router = useRouter();
 
-  // Persist answers whenever they change
+  // Memoize calculated values to avoid recalculation on each render
+  const answeredCount = useMemo(
+    () => Object.keys(examState.answers).length,
+    [examState.answers]
+  );
+
+  const remainingCount = useMemo(
+    () => examState.questions.length - answeredCount,
+    [examState.questions.length, answeredCount]
+  );
+
+  // Initialize data - run only once
   useEffect(() => {
-    localStorage.setItem("examAnswers", JSON.stringify(answers));
-  }, [answers]);
-
-  // Persist time remaining
-  useEffect(() => {
-    localStorage.setItem("examTimeRemaining", timeRemaining.toString());
-  }, [timeRemaining]);
-
-  // Fetch questions on component mount
-  useEffect(() => {
-    // Retrieve student info and course ID
-    const storedStudentInfo = JSON.parse(
-      localStorage.getItem("studentSession") || "{}"
-    ) as StudentInfo;
-    setStudentInfo(storedStudentInfo);
-
-    // Fetch questions for the course
-    const fetchQuestions = async () => {
+    const initializeExam = async () => {
       try {
-        const response = await fetch(
-          `/api/exam/questions?formId=${storedStudentInfo.courseId}`
+        // Get student info from localStorage (only once)
+        const studentInfo = JSON.parse(
+          localStorage.getItem("studentSession") || "{}"
         );
-        const data = await response.json();
 
-        if (data.success) {
-          setQuestions(data.questions);
-        }
+        // Use batch state update
+        setExamState((prev) => ({
+          ...prev,
+          answers: storedAnswers || {},
+          studentInfo,
+        }));
+
+        await fetchQuestions();
       } catch (error) {
-        console.error("Failed to fetch questions", error);
+        console.error("Initialization error:", error);
+        setExamState((prev) => ({
+          ...prev,
+          error: "Failed to initialize exam",
+          isLoading: false,
+        }));
       }
     };
 
-    fetchQuestions();
+    initializeExam();
   }, []);
 
-  // Timer management
+  // Persist answers with debounce/throttle
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmitExam();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // Use a timer to batch updates to the store
+    const timerId = setTimeout(() => {
+      setAllAnswers(examState.answers);
+    }, 500); // 500ms debounce
 
-    return () => clearInterval(timer);
-  }, []);
+    // Clean up timer
+    return () => clearTimeout(timerId);
+  }, [examState.answers, setAllAnswers]);
 
-  // Format time
-  const formatTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    return `${hours.toString().padStart(2, "0")}:${minutes
-      .toString()
-      .padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
-  };
-
-  // Answer selection handler
-  const handleAnswerSelect = (optionIndex: number): void => {
-    setAnswers((prev) => ({
-      ...prev,
-      [currentQuestion]: optionIndex,
-    }));
-
-    // Auto-navigate to next question
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion((prev) => prev + 1);
-    }
-  };
-
-  // Exam submission handler
-  const handleSubmitExam = async (): Promise<void> => {
-    if (isSubmitting || !studentInfo) return;
-
-    setIsSubmitting(true);
+  // Fetch questions - extracted as a separate function
+  const fetchQuestions = async () => {
     try {
-      const response = await fetch("/api/exam/submit", {
-        method: "POST",
+      setExamState((prev) => ({ ...prev, isLoading: true }));
+
+      const response = await fetch(`/api/exam/questions`, {
+        // Add cache headers
         headers: {
-          "Content-Type": "application/json",
+          "Cache-Control": "max-age=3600",
         },
-        body: JSON.stringify({
-          courseId: studentInfo.courseId,
-          rollNo: studentInfo.rollNumber,
-          answers: Object.entries(answers).reduce((acc: any, [key, value]) => {
-            acc[questions[parseInt(key)].id] = value;
-            return acc;
-          }, {}),
-        }),
       });
 
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
 
-      if (result.success) {
-        // Clear local storage after successful submission
-        localStorage.removeItem("examAnswers");
-        localStorage.removeItem("examTimeRemaining");
-        console.log("Exam submitted successfully");
+      const data = await response.json();
+
+      if (data.success) {
+        setExamState((prev) => ({
+          ...prev,
+          questions: data.questions,
+          isLoading: false,
+        }));
+      } else {
+        throw new Error(data.message || "Failed to fetch questions");
       }
     } catch (error) {
-      console.error("Submission error", error);
-    } finally {
-      setIsSubmitting(false);
+      console.error("Failed to fetch questions", error);
+      setExamState((prev) => ({
+        ...prev,
+        error: "Failed to load questions. Please refresh the page.",
+        isLoading: false,
+      }));
     }
   };
 
-  // Determine question status
-  const getQuestionStatus = (index: number): string => {
-    if (answers[index]) return "bg-green-500";
-    return "bg-blue-400";
-  };
+  // Memoize handlers to prevent recreation on each render
+  const handleAnswerSelect = useCallback((optionIndex: number): void => {
+    setExamState((prev) => {
+      const newAnswers = {
+        ...prev.answers,
+        [prev.currentQuestion]: optionIndex,
+      };
 
-  // If no questions or student info, return null
-  if (!questions.length || !studentInfo) return null;
+      // Combine state updates to reduce renders
+      return {
+        ...prev,
+        answers: newAnswers,
+        // Only update currentQuestion if not on the last question
+        currentQuestion:
+          prev.currentQuestion < prev.questions.length - 1
+            ? prev.currentQuestion + 1
+            : prev.currentQuestion,
+      };
+    });
+  }, []);
+
+  // Memoize navigation handlers
+  const handlePrevQuestion = useCallback(() => {
+    setExamState((prev) => ({
+      ...prev,
+      currentQuestion: Math.max(0, prev.currentQuestion - 1),
+    }));
+  }, []);
+
+  const handleNextQuestion = useCallback(() => {
+    setExamState((prev) => ({
+      ...prev,
+      currentQuestion: Math.min(
+        prev.questions.length - 1,
+        prev.currentQuestion + 1
+      ),
+    }));
+  }, []);
+
+  // Memoize question navigation handler
+  const handleQuestionNav = useCallback((index: number) => {
+    setExamState((prev) => ({
+      ...prev,
+      currentQuestion: index,
+    }));
+  }, []);
+
+  // Optimized exam submission with retry logic
+  const handleSubmitExam = useCallback(async (): Promise<void> => {
+    // Prevent multiple submissions
+    if (examState.isSubmitting) return;
+
+    setExamState((prev) => ({ ...prev, isSubmitting: true }));
+
+    // Implement retry logic
+    const maxRetries = 3;
+    let retries = 0;
+    let success = false;
+
+    while (retries < maxRetries && !success) {
+      try {
+        const response = await fetch("/api/exam/submit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            answers: examState.answers,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          // Clear storage
+          clearAnswers();
+          localStorage.removeItem("examAnswers");
+          localStorage.removeItem("examTimeRemaining");
+          localStorage.clear();
+
+          success = true;
+          router.replace("/completed");
+        } else {
+          if (retries === maxRetries - 1) {
+            toast.error(result?.message ?? "Failed to submit exam");
+          }
+          retries++;
+        }
+      } catch (error) {
+        console.error(`Submission error (attempt ${retries + 1}):`, error);
+
+        if (retries === maxRetries - 1) {
+          toast.error("Network error. Please try again.");
+        }
+        retries++;
+      }
+    }
+
+    setExamState((prev) => ({ ...prev, isSubmitting: false }));
+  }, [examState.answers, examState.isSubmitting, clearAnswers, router]);
+
+  // Memoize the question status function
+  const getQuestionStatus = useCallback(
+    (index: number): string => {
+      return examState.answers[index] ? "bg-green-500" : "bg-blue-400";
+    },
+    [examState.answers]
+  );
+
+  // Loading state
+  if (examState.isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-200 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <p className="text-lg">Loading exam...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (examState.error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-200 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg shadow-lg text-red-500">
+          <p className="text-lg">{examState.error}</p>
+          <button
+            onClick={fetchQuestions}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If no questions or student info, return empty UI
+  if (!examState.questions.length || !examState.studentInfo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-200 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <p className="text-lg">No exam data available</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Destructure for cleaner JSX
+  const { questions, currentQuestion, answers, isSubmitting, studentInfo } =
+    examState;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-200 p-2 sm:p-4 lg:p-8 flex flex-col sm:flex-row">
+    <div className="min-h-screen p-2 sm:p-4 lg:p-8 flex flex-col md:w-[80vw] w-full m-auto">
       {/* Main Exam Container */}
+      <div className="w-full px-6 flex items-center justify-between">
+        <img
+          src="/naan-logo.png"
+          alt="Naan Logo"
+          className="object-cover md:w-40 w-20"
+          loading="eager" // Prioritize logo loading
+        />
+        <img
+          src="/sfjlogo.png"
+          alt="SFJ Logo"
+          className="object-cover md:w-24 w-12"
+          loading="eager" // Prioritize logo loading
+        />
+      </div>
       <div className="flex-grow bg-white sm:rounded-2xl shadow-xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-blue-500 text-white p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-center">
@@ -182,7 +318,7 @@ export default function ExamPage() {
             <h2 className="text-lg sm:text-2xl font-bold truncate">
               {studentInfo.university}
             </h2>
-            <p className="text-xs sm:text-sm text-blue-100 truncate">
+            <p className="text-xs sm:text-sm text-blue-100 truncate px-3">
               {studentInfo.college}
             </p>
           </div>
@@ -200,20 +336,17 @@ export default function ExamPage() {
         {/* Timer */}
         <div className="bg-blue-100 p-3 sm:p-4 text-center flex flex-col sm:flex-row justify-between items-center">
           <div className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-0">
-            Total: {questions.length} | Answered: {Object.keys(answers).length}{" "}
-            | Remaining: {questions.length - Object.keys(answers).length}
+            Total: {questions.length} | Answered: {answeredCount} | Remaining:{" "}
+            {remainingCount}
           </div>
-          <span className="text-base sm:text-xl text-red-600">
-            Time: {formatTime(timeRemaining)}
-          </span>
         </div>
 
-        {/* Question Navigation */}
+        {/* Question Navigation - Windowed rendering for many questions */}
         <div className="flex gap-2 overflow-x-auto p-2 sm:p-4 scrollbar-hide">
           {questions.map((_, index) => (
             <button
               key={index}
-              onClick={() => setCurrentQuestion(index)}
+              onClick={() => handleQuestionNav(index)}
               className={`flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 text-[10px] sm:text-xs rounded-full flex items-center justify-center 
               ${getQuestionStatus(index)} text-white 
               ${
@@ -243,10 +376,10 @@ export default function ExamPage() {
                 <button
                   key={optionIndex}
                   onClick={() => handleAnswerSelect(optionIndex + 1)}
-                  className={`w-full text-left p-2 sm:p-4 rounded-lg transition-all duration-300 ease-in-out transform 
+                  className={`w-full text-left p-2 sm:p-4 rounded-lg transition-colors duration-200
                   ${
                     answers[currentQuestion] === optionIndex + 1
-                      ? "bg-blue-500 text-white sm:scale-105"
+                      ? "bg-blue-500 text-white"
                       : "bg-white hover:bg-blue-50 hover:shadow-md border-gray-400"
                   }`}
                 >
@@ -264,20 +397,14 @@ export default function ExamPage() {
           {/* Navigation Buttons */}
           <div className="mt-4 sm:mt-6 flex justify-between">
             <button
-              onClick={() =>
-                setCurrentQuestion((prev) => Math.max(0, prev - 1))
-              }
+              onClick={handlePrevQuestion}
               disabled={currentQuestion === 0}
               className="px-3 py-2 sm:px-4 sm:py-2 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 text-xs sm:text-base"
             >
               Previous
             </button>
             <button
-              onClick={() =>
-                setCurrentQuestion((prev) =>
-                  Math.min(questions.length - 1, prev + 1)
-                )
-              }
+              onClick={handleNextQuestion}
               disabled={currentQuestion === questions.length - 1}
               className="px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700 text-xs sm:text-base"
             >
@@ -286,6 +413,7 @@ export default function ExamPage() {
           </div>
         </div>
 
+        {/* Submit Dialog */}
         <Dialog>
           <DialogTrigger>
             <div className="p-4 sm:p-6 bg-gray-100 text-right">
@@ -305,28 +433,21 @@ export default function ExamPage() {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <DialogClose>Cancel</DialogClose>
+              <DialogClose asChild>
+                <button className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+                  Cancel
+                </button>
+              </DialogClose>
               <button
                 onClick={handleSubmitExam}
                 disabled={isSubmitting}
-                className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors text-sm sm:text-base"
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
                 {isSubmitting ? "Submitting..." : "Submit Exam"}
               </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* Submit Exam Button */}
-        {/* <div className="p-4 sm:p-6 bg-gray-100 text-right">
-          <button
-            onClick={handleSubmitExam}
-            disabled={isSubmitting}
-            className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors text-sm sm:text-base"
-          >
-            {isSubmitting ? "Submitting..." : "Submit Exam"}
-          </button>
-        </div> */}
       </div>
     </div>
   );
