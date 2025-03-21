@@ -15,7 +15,7 @@ const SMARTPING_API_KEY = process.env.SMARTPING_API_KEY || "";
 // For production with multiple instances, consider using Redis instead
 const rateLimitCache = new Map<string, { count: number; timestamp: number }>();
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const MAX_REQUESTS = 5; // 5 requests per 15 minutes
+const MAX_REQUESTS = 200; // 5 requests per 15 minutes
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
