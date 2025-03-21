@@ -5,6 +5,7 @@ const OTPSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: true,
+    unique: true,
   },
   countryCode: {
     type: String,
@@ -22,7 +23,7 @@ const OTPSchema = new mongoose.Schema({
 });
 
 // Create index on createdAt for TTL (automatic expiration)
-OTPSchema.index({ createdAt: 1 }, { expireAfterSeconds: 300 });
+// OTPSchema.index({ createdAt: 1 }, { expireAfterSeconds: 300 });
 
 const OTP = mongoose.models.OTP || mongoose.model("OTP", OTPSchema);
 

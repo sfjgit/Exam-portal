@@ -63,7 +63,7 @@ export type IStudent = InferSchemaType<typeof studentSchema>;
 
 // Add only the essential indexes for high-volume operations
 studentSchema.index({ "Student RollNo": 1 });
-studentSchema.index({ "sessionData.isActive": 1 });
+// studentSchema.index({ "sessionData.isActive": 1 });
 
 // const Student = mongoose.model("Student", studentSchema);
 const Student =

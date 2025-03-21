@@ -164,7 +164,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       cookies()
     ).set("session_token", sessionToken, {
       httpOnly: true,
-      secure: process.env.APP_ENV === "production",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 5 * 60 * 60, // 5 hours in seconds
       path: "/",
     });
