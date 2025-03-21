@@ -24,7 +24,6 @@ const studentSchema = new mongoose.Schema(
     },
     "Student RollNo": {
       type: String,
-      unique: true,
     },
     "Student NM Id": String,
     "Course Name": String,
