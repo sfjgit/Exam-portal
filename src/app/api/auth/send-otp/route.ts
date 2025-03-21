@@ -148,7 +148,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         success: true,
         message: "OTP sent successfully",
         // In development mode only, return the OTP
-        ...(process.env.APP_ENV === "development" && { otp }),
+        ...(process.env.NODE_ENV === "development" && { otp }),
       });
     } catch (error: any) {
       console.error("WhatsApp API error:", error.message);
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         success: true,
         message:
           "OTP generated successfully. If you don't receive it via WhatsApp, please check your phone number and try again.",
-        ...(process.env.APP_ENV === "development" && { otp }),
+        ...(process.env.NODE_ENV === "development" && { otp }),
       });
     }
   } catch (error: any) {
